@@ -1,0 +1,461 @@
+---
+alwaysApply: true
+---
+# Python Best Practices
+
+This document outlines Python coding standards and best practices for this project.
+
+## Type Hints (Python 3.13+)
+
+Always use type hints for function parameters, return values, and class attributes using native Python 3.13+ syntax:
+
+```python
+from pathlib import Path
+
+# Simple types use native syntax
+def process_data(items: list[str], config: dict[str, str]) -> str | None:
+    """Process items based on configuration."""
+    pass
+
+class DataProcessor:
+    def __init__(self, config: dict[str, str]) -> None:
+        self.config: dict[str, str] = config
+        self.results: list[str] = []
+```
+
+### Type Aliases for Complex Types
+
+Create type aliases for complex recurring types using the `type` keyword:
+
+```python
+# Type aliases for clarity and reusability
+type UserConfig = dict[str, str | int | bool]
+type ProcessingResult = tuple[bool, str | None, list[str]]
+type EventHandler = callable[[str, dict[str, str]], None]
+
+def configure_user(config: UserConfig) -> bool:
+    """Configure user with complex configuration dictionary."""
+    pass
+
+def process_events(handler: EventHandler, events: list[dict[str, str]]) -> ProcessingResult:
+    """Process events and return success status, error message, and results."""
+    pass
+```
+
+## Modern Type System Guidelines
+
+### When to Use Type Aliases
+
+Create type aliases for:
+- Complex nested structures used multiple times
+- Union types with more than 2 options
+- Function signatures or callback types
+- Domain-specific type meanings
+
+```python
+# Good - meaningful aliases for complex types
+type DatabaseConfig = dict[str, str | int | bool]
+type ProcessorCallback = callable[[list[str]], bool]
+type ApiResponse = tuple[int, dict[str, str] | None, str | None]
+
+# Avoid - unnecessary aliases for simple types
+type StringList = list[str]  # Just use list[str] directly
+type OptionalString = str | None  # Just use str | None directly
+```
+
+### Union Type Syntax
+
+Use the `|` operator for union types instead of `typing.Union`:
+
+```python
+# Modern Python 3.13+ syntax
+def handle_input(value: str | int | None) -> str:
+    """Handle various input types."""
+    if value is None:
+        return "No value"
+    return str(value)
+
+# Multiple unions with type alias for clarity
+type ProcessableData = dict[str, str] | list[str] | str
+
+def process(data: ProcessableData) -> bool:
+    """Process different data formats."""
+    pass
+```
+
+## Documentation
+
+### Function Docstrings
+
+Use Google-style docstrings with complete parameter and return documentation:
+
+```python
+def calculate_metrics(data: list[float], threshold: float = 0.5) -> dict[str, float]:
+    """Calculate statistical metrics for the given data.
+
+    Args:
+        data: List of numerical values to analyze.
+        threshold: Minimum value threshold for filtering (default: 0.5).
+
+    Returns:
+        Dictionary containing calculated metrics:
+        - 'mean': Average value
+        - 'median': Middle value
+        - 'count': Number of values above threshold
+
+    Raises:
+        ValueError: If data list is empty.
+        TypeError: If data contains non-numeric values.
+
+    Example:
+        >>> calculate_metrics([1.0, 2.0, 3.0], threshold=1.5)
+        {'mean': 2.0, 'median': 2.0, 'count': 2}
+    """
+```
+
+### Class Docstrings
+
+Document classes with purpose, attributes, and usage examples:
+
+```python
+class ConfigManager:
+    """Manages application configuration loading and validation.
+
+    This class handles loading configuration from JSON files, validating
+    required fields, and providing type-safe access to config values.
+
+    Attributes:
+        config_path: Path to the configuration file.
+        config: Loaded configuration dictionary.
+
+    Example:
+        >>> manager = ConfigManager("config.json")
+        >>> value = manager.get("database.host", default="localhost")
+    """
+```
+
+## Error Handling
+
+### Specific Exception Types
+
+Use specific exception types and provide meaningful error messages:
+
+```python
+def load_config(config_path: Path) -> dict[str, str]:
+    """Load configuration from JSON file."""
+    try:
+        with open(config_path, 'r') as f:
+            config = json.load(f)
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in config file {config_path}: {e}")
+    except PermissionError:
+        raise PermissionError(f"Permission denied reading config file: {config_path}")
+
+    return config
+```
+
+### Logging Instead of Silent Failures
+
+Always log errors and use appropriate log levels:
+
+```python
+import logging
+from pathlib import Path
+
+logger = logging.getLogger(__name__)
+
+def safe_file_operation(file_path: Path) -> bool:
+    """Safely perform file operation with proper error handling."""
+    try:
+        # Perform operation
+        return True
+    except Exception as e:
+        logger.error(f"File operation failed for {file_path}: {e}")
+        return False
+```
+
+### Module-Specific Logging for Hook Systems
+
+Each hook module should have its own logger and log file to prevent conflicts:
+
+```python
+import logging
+from pathlib import Path
+
+def setup_module_logger(module_name: str, log_file: Path | None = None) -> logging.Logger:
+    """Set up a module-specific logger with file handler.
+
+    Args:
+        module_name: Name of the module (e.g., 'hooks.voice_notifications')
+        log_file: Path to log file (defaults to module_debug.log in same directory)
+
+    Returns:
+        Configured logger instance.
+    """
+    logger = logging.getLogger(module_name)
+
+    if logger.handlers:
+        return logger  # Already configured
+
+    if log_file is None:
+        log_file = Path(__file__).parent / f"{module_name.split('.')[-1]}_debug.log"
+
+    # Create file handler
+    handler = logging.FileHandler(log_file, mode='a', encoding='utf-8')
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+    handler.setFormatter(formatter)
+
+    logger.addHandler(handler)
+    logger.setLevel(logging.DEBUG)
+
+    return logger
+
+# Usage in hook modules
+logger = setup_module_logger('hooks.voice_notifications')
+
+def process_hook_event(event_data: dict[str, str]) -> None:
+    """Process hook event with proper logging."""
+    logger.info(f"Processing hook event: {event_data.get('hook_event_name')}")
+    try:
+        # Process event
+        logger.debug(f"Event processed successfully")
+    except Exception as e:
+        logger.error(f"Hook processing failed: {e}")
+```
+
+## Code Organization
+
+### Import Organization
+
+Group imports in this order with blank lines between groups:
+
+```python
+# Standard library imports
+import json
+import sys
+from pathlib import Path
+
+# Third-party imports
+import pygame
+import requests
+
+# Local imports
+from .config import ConfigManager
+from .utils import helper_function
+```
+
+### Constants
+
+Define constants at module level with descriptive names:
+
+```python
+# Configuration constants
+DEFAULT_CONFIG_PATH: Path = Path(__file__).parent / "config.json"
+MAX_RETRY_ATTEMPTS: int = 3
+TIMEOUT_SECONDS: float = 30.0
+
+# Audio configuration
+AUDIO_SAMPLE_RATE: int = 22050
+AUDIO_BUFFER_SIZE: int = 1024
+```
+
+## Path Handling
+
+Always use `pathlib.Path` instead of string concatenation:
+
+```python
+from pathlib import Path
+
+def setup_directories(base_path: Path) -> dict[str, Path]:
+    """Set up required directory structure."""
+    directories = {
+        'config': base_path / 'config',
+        'logs': base_path / 'logs',
+        'temp': base_path / 'temp'
+    }
+
+    for name, path in directories.items():
+        path.mkdir(parents=True, exist_ok=True)
+
+    return directories
+```
+
+## Resource Management
+
+### Context Managers
+
+Always use context managers for file operations and resource cleanup:
+
+```python
+def read_json_file(file_path: Path) -> dict[str, str]:
+    """Read JSON data from file with proper resource management."""
+    with open(file_path, 'r', encoding='utf-8') as f:
+        return json.load(f)
+
+def write_json_file(data: dict[str, str], file_path: Path) -> None:
+    """Write JSON data to file with proper resource management."""
+    with open(file_path, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)
+```
+
+### Custom Context Managers
+
+Create context managers for cleanup operations:
+
+```python
+from contextlib import contextmanager
+from collections.abc import Iterator
+
+@contextmanager
+def audio_system() -> Iterator[None]:
+    """Context manager for audio system initialization and cleanup."""
+    try:
+        pygame.mixer.init()
+        yield
+    finally:
+        pygame.mixer.quit()
+
+# Usage
+with audio_system():
+    # Audio operations here
+    pass
+```
+
+## Function Design
+
+### Single Responsibility
+
+Keep functions focused on a single task:
+
+```python
+# Type alias for complex nested dictionaries
+type SoundMapping = dict[str, dict[str, str] | str | list[str]]
+
+def load_sound_mapping(mapping_file: Path) -> SoundMapping:
+    """Load sound mapping configuration from JSON file."""
+    # Only responsible for loading and parsing
+
+def validate_sound_mapping(mapping: SoundMapping) -> bool:
+    """Validate sound mapping configuration structure."""
+    # Only responsible for validation
+
+def get_sound_name(mapping: SoundMapping,
+                  hook_event: str,
+                  tool_name: str | None = None) -> str:
+    """Get sound name from mapping based on hook event and tool."""
+    # Only responsible for mapping logic
+```
+
+### Default Parameters
+
+Use default parameters instead of mutable defaults:
+
+```python
+# Good
+def process_items(items: list[str], options: dict[str, str] | None = None) -> list[str]:
+    """Process items with optional configuration."""
+    if options is None:
+        options = {}
+    return processed_items
+
+# Bad - mutable default argument
+def process_items(items: list[str], options: dict[str, str] = {}) -> list[str]:
+    pass
+```
+
+## Data Validation
+
+### Input Validation
+
+Always validate inputs at function boundaries:
+
+```python
+def calculate_average(numbers: list[float]) -> float:
+    """Calculate average of a list of numbers."""
+    if not numbers:
+        raise ValueError("Cannot calculate average of empty list")
+
+    if not all(isinstance(n, (int, float)) for n in numbers):
+        raise TypeError("All items must be numeric")
+
+    return sum(numbers) / len(numbers)
+```
+
+## Configuration Management
+
+### Typed Configuration
+
+Use dataclasses or typed dictionaries for configuration:
+
+```python
+from dataclasses import dataclass
+
+@dataclass
+class AudioConfig:
+    """Audio system configuration."""
+    sample_rate: int = 22050
+    buffer_size: int = 1024
+    timeout_seconds: float = 3.0
+
+    def validate(self) -> None:
+        """Validate configuration values."""
+        if self.sample_rate <= 0:
+            raise ValueError("Sample rate must be positive")
+        if self.timeout_seconds <= 0:
+            raise ValueError("Timeout must be positive")
+```
+
+## Testing Support
+
+### Testable Functions
+
+Write functions that are easy to test by avoiding global state:
+
+```python
+def format_debug_message(hook_event: str,
+                        tool_name: str | None,
+                        sound_name: str,
+                        voice: str) -> str:
+    """Format debug message for logging."""
+    tool_part = f", Tool: {tool_name}" if tool_name else ", Tool: None"
+    return f"Hook: {hook_event}{tool_part} -> Sound: {sound_name}, Voice: {voice}"
+
+# Easy to test without side effects
+def test_format_debug_message():
+    result = format_debug_message("Stop", None, "task_complete", "alfred")
+    assert result == "Hook: Stop, Tool: None -> Sound: task_complete, Voice: alfred"
+```
+
+## Performance Considerations
+
+### Lazy Loading
+
+Load resources only when needed:
+
+```python
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def load_sound_mapping() -> dict[str, dict[str, str]]:
+    """Load sound mapping with caching."""
+    # Expensive operation cached after first call
+    pass
+
+def get_mapping() -> dict[str, dict[str, str]]:
+    """Get mapping with lazy loading."""
+    return load_sound_mapping()
+```
+
+## Formatting and Style
+
+- Use `black` for code formatting
+- Use `isort` for import sorting
+- Use `flake8` for linting
+- Maximum line length: 88 characters (black default)
+- Use double quotes for strings
+- Use trailing commas in multi-line structures

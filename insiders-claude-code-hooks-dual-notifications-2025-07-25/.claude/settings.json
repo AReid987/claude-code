@@ -1,0 +1,46 @@
+{
+  "permissions": {
+    "allow": [],
+    "deny": []
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run .claude/hooks/voice_notifications/handler.py --voice=alfred"
+          },
+          {
+            "type": "command",
+            "command": "uv run .claude/hooks/push_notifications/handler.py --topic=your-topic-here"
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run .claude/hooks/voice_notifications/handler.py --voice=alfred"
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run .claude/hooks/voice_notifications/handler.py --voice=alfred"
+          },
+          {
+            "type": "command",
+            "command": "uv run .claude/hooks/push_notifications/handler.py --topic=your-topic-here --priority=4 --tags=🔔"
+          }
+        ]
+      }
+    ]
+  }
+}
